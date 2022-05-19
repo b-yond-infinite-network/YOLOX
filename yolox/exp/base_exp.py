@@ -24,7 +24,7 @@ class BaseExp(metaclass=ABCMeta):
         self.print_interval = 100
         self.eval_interval = 10
         self.neptune = None
-
+        
     @abstractmethod
     def get_model(self) -> Module:
         pass
