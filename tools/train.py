@@ -7,6 +7,7 @@ import random
 import warnings
 from loguru import logger
 
+import yaml
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -40,6 +41,12 @@ def make_parser():
         default=None,
         type=str,
         help="plz input your experiment description file",
+    )
+    parser.add_argument(
+        "--config_filepath",
+        default=None,
+        type=str,
+        help="Filepath to config file",
     )
     parser.add_argument(
         "--resume", default=False, action="store_true", help="resume training"
@@ -126,6 +133,11 @@ if __name__ == "__main__":
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
 
+    if args.config_filepath is not None:
+        with open(args.config_filepath, "r") as f:
+            config = yaml.safe_load(f)
+        exp.add_params_from_config(config, use_neptune=True)
+        exp.neptune['config_file'].track_files(args.config_filepath)
     num_gpu = get_num_devices() if args.devices is None else args.devices
     assert num_gpu <= get_num_devices()
 
