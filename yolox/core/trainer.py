@@ -56,6 +56,9 @@ class Trainer:
         self.input_size = exp.input_size
         self.best_ap = 0
 
+        # validation loss
+        self.calc_validation_loss = exp.calc_val_loss
+
         # metric record
         self.meter = MeterBuffer(window_size=exp.print_interval)
         self.file_name = os.path.join(exp.output_dir, args.experiment_name)
@@ -153,10 +156,21 @@ class Trainer:
             no_aug=self.no_aug,
             cache_img=self.args.cache,
         )
+        if self.calc_validation_loss:
+            self.val_loader = self.exp.get_val_loader(
+                batch_size=self.args.batch_size,
+                is_distributed=self.is_distributed,
+                no_aug=False,
+                cache_img=self.args.cache,
+            )
         logger.info("init prefetcher, this might take one minute or less...")
         self.prefetcher = DataPrefetcher(self.train_loader)
+        if self.calc_validation_loss:
+            self.val_prefetcher = DataPrefetcher(self.val_loader)
         # max_iter means iters per epoch
         self.max_iter = len(self.train_loader)
+        if self.calc_validation_loss:
+            self.max_val_iter = len(self.val_loader)
 
         self.lr_scheduler = self.exp.get_lr_scheduler(
             self.exp.basic_lr_per_img * self.args.batch_size, self.max_iter
@@ -316,6 +330,10 @@ class Trainer:
         return model
 
     def evaluate_and_save_model(self):
+        # calculate loss
+        if self.calc_validation_loss:
+            self.calculate_eval_loss()
+
         if self.use_model_ema:
             evalmodel = self.ema_model.ema
         else:
@@ -369,3 +387,26 @@ class Trainer:
             if self.args.logger == "wandb":
                 self.wandb_logger.save_checkpoint(self.file_name, ckpt_name, update_best_ckpt)
 
+    def calculate_eval_loss(self):
+        for iter in range(self.max_val_iter):
+            inps, targets = self.val_prefetcher.next()
+            inps = inps.to(self.data_type)
+            targets = targets.to(self.data_type)
+            targets.requires_grad = False
+            inps, targets = self.exp.preprocess(inps, targets, self.input_size)
+            with torch.cuda.amp.autocast(enabled=self.amp_training):
+                outputs = self.model(inps, targets)
+            loss = {
+                "total_loss": outputs["total_loss"],
+                "iou_loss": outputs["iou_loss"],
+                "l1_loss": outputs["l1_loss"],
+                "conf_loss": outputs["conf_loss"],
+                "cls_loss": outputs["cls_loss"]
+            }
+            progress_str = "epoch: {}/{}, iter: {}/{},".format(
+                self.epoch + 1, self.max_epoch, iter + 1, self.max_val_iter
+            )
+            for loss_name, loss_value in loss.items():
+                progress_str += " {}: {:.1f},".format(loss_name, loss_value)
+                self.neptune[f"loss/val/{loss_name}"].log(loss_value)
+            logger.info("Validation:{}".format(progress_str))
