@@ -81,6 +81,8 @@ class Exp(BaseExp):
         self.no_aug_epochs = 15
         # apply EMA during training
         self.ema = True
+        # calculate validation loss
+        self.calc_val_loss = False
 
         # weight decay of optimizer
         self.weight_decay = 5e-4

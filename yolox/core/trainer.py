@@ -55,6 +55,9 @@ class Trainer:
         self.input_size = exp.input_size
         self.best_ap = 0
 
+        # validation loss
+        self.calc_validation_loss = exp.calc_val_loss
+
         # metric record
         self.meter = MeterBuffer(window_size=exp.print_interval)
         self.file_name = os.path.join(exp.output_dir, args.experiment_name)
@@ -152,18 +155,21 @@ class Trainer:
             no_aug=self.no_aug,
             cache_img=self.args.cache,
         )
-        self.val_loader = self.exp.get_val_loader(
-            batch_size=self.args.batch_size,
-            is_distributed=self.is_distributed,
-            no_aug=False,
-            cache_img=self.args.cache,
-        )
+        if self.calc_validation_loss:
+            self.val_loader = self.exp.get_val_loader(
+                batch_size=self.args.batch_size,
+                is_distributed=self.is_distributed,
+                no_aug=False,
+                cache_img=self.args.cache,
+            )
         logger.info("init prefetcher, this might take one minute or less...")
         self.prefetcher = DataPrefetcher(self.train_loader)
-        self.val_prefetcher = DataPrefetcher(self.val_loader)
+        if self.calc_validation_loss:
+            self.val_prefetcher = DataPrefetcher(self.val_loader)
         # max_iter means iters per epoch
         self.max_iter = len(self.train_loader)
-        self.max_val_iter = len(self.val_loader)
+        if self.calc_validation_loss:
+            self.max_val_iter = len(self.val_loader)
 
         self.lr_scheduler = self.exp.get_lr_scheduler(
             self.exp.basic_lr_per_img * self.args.batch_size, self.max_iter
@@ -324,7 +330,8 @@ class Trainer:
 
     def evaluate_and_save_model(self):
         # calculate loss
-        self.calculate_eval_loss()
+        if self.calc_validation_loss:
+            self.calculate_eval_loss()
 
         if self.use_model_ema:
             evalmodel = self.ema_model.ema
