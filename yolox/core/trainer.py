@@ -5,7 +5,6 @@
 import datetime
 import os
 import time
-import numpy as np
 from loguru import logger
 
 import torch
@@ -388,35 +387,25 @@ class Trainer:
                 self.wandb_logger.save_checkpoint(self.file_name, ckpt_name, update_best_ckpt)
 
     def calculate_eval_loss(self):
-        loss = {
-            "total_loss": [],
-            "iou_loss": [],
-            "l1_loss": [],
-            "conf_loss": [],
-            "cls_loss": []
-        }
         for iter in range(self.max_val_iter):
             inps, targets = self.val_prefetcher.next()
             inps = inps.to(self.data_type)
             targets = targets.to(self.data_type)
             targets.requires_grad = False
             inps, targets = self.exp.preprocess(inps, targets, self.input_size)
-
             with torch.cuda.amp.autocast(enabled=self.amp_training):
                 outputs = self.model(inps, targets)
-
-            loss["total_loss"].append(outputs["total_loss"])
-            loss["iou_loss"].append(outputs["iou_loss"])
-            loss["l1_loss"].append(outputs["l1_loss"])
-            loss["conf_loss"].append(outputs["conf_loss"])
-            loss["cls_loss"].append(outputs["cls_loss"])
-
-        progress_str = "epoch: {}/{},".format(
-            self.epoch + 1, self.max_epoch
-        )
-
-        for loss_name, loss_value in loss.items():
-            progress_str += " {}: {:.1f}".format(loss_name, np.nanmean(loss_value))
-            self.neptune[f"loss/val/{loss_name}"].log(np.nanmean(loss_value))
-
-        logger.info("Validation:{}".format(progress_str))
+            loss = {
+                "total_loss": outputs["total_loss"],
+                "iou_loss": outputs["iou_loss"],
+                "l1_loss": outputs["l1_loss"],
+                "conf_loss": outputs["conf_loss"],
+                "cls_loss": outputs["cls_loss"]
+            }
+            progress_str = "epoch: {}/{}, iter: {}/{},".format(
+                self.epoch + 1, self.max_epoch, iter + 1, self.max_val_iter
+            )
+            for loss_name, loss_value in loss.items():
+                progress_str += " {}: {:.1f},".format(loss_name, loss_value)
+                self.neptune[f"loss/val/{loss_name}"].log(loss_value)
+            logger.info("Validation:{}".format(progress_str))
