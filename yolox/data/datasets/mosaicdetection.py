@@ -6,6 +6,7 @@ import random
 
 import cv2
 import numpy as np
+import torch
 
 from yolox.utils import adjust_box_anns, get_local_rank
 
@@ -151,6 +152,7 @@ class MosaicDetection(Dataset):
             # img_info and img_id are not used for training.
             # They are also hard to be specified on a mosaic image.
             # -----------------------------------------------------------------
+            img_id = torch.tensor(np.array(img_id), dtype=torch.long)
             return mix_img, padded_labels, img_info, img_id
 
         else:
