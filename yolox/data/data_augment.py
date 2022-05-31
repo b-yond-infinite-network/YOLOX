@@ -158,42 +158,38 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     return padded_img, r
 
 def copy_paste(img, paste_img, labels, paste_labels, prob=0.5, obj_proc=0.5):
-    img_h, img_w = img.shape[:2]
-    paste_labels = paste_labels.astype(int)
-    objects_to_paste = paste_labels[random.sample(
-        range(0, len(paste_labels) - 1), int(len(paste_labels) * obj_proc)
-    )]
-    if len(objects_to_paste) == 0:
-        return img, labels
-    cropped_objects = {
-        idx: paste_img[object[1]:object[3], object[0]:object[2]] 
-        for idx, object in enumerate(objects_to_paste)
-    }
-    #50% chance to flip the object
-    for idx, obj in cropped_objects.items():
-        if random.random() > 0.5:
-            cropped_objects[idx] = obj[:,::-1]
-    new_coords = {
-        idx: (
-            random.randint(0, img_w - (object[2] - object[0])),
-            random.randint(0, img_h - (object[3] - object[1]))
-        )
-        for idx, object in enumerate(objects_to_paste)
-    }
-    new_labels = []
-    for idx, coords in new_coords.items():
-        new_labels.append(np.array([
-            coords[0], 
-            coords[1], 
-            coords[0] + objects_to_paste[idx][2]- objects_to_paste[idx][0],
-            coords[1] + objects_to_paste[idx][3]- objects_to_paste[idx][1],
-            objects_to_paste[idx][4]
-        ]))
-    for idx, object in enumerate(new_labels):
-        img[object[1]:object[3], object[0]:object[2]] = cropped_objects[idx]
-    labels = np.append(labels, new_labels, 0)
+    if random.random() > prob:
+        img_h, img_w = img.shape[:2]
+        paste_labels = paste_labels.astype(int)
+        objects_to_paste = paste_labels[random.sample(
+            range(0, len(paste_labels) - 1), int(len(paste_labels) * obj_proc)
+        )]
+        if len(objects_to_paste) == 0:
+            return img, labels
+        cropped_objects = [
+            paste_img[object[1]:object[3], object[0]:object[2]] 
+            for object in objects_to_paste
+        ]
+        #50% chance to flip the object
+        for idx, obj in enumerate(cropped_objects):
+            if random.random() > 0.5:
+                cropped_objects[idx] = obj[:,::-1]
+        new_labels = []
+        for idx, object in enumerate(objects_to_paste):
+            new_x = random.randint(0, img_w - (object[2] - object[0]))
+            new_y = random.randint(0, img_h - (object[3] - object[1]))
+            new_labels.append(np.array([
+                new_x,
+                new_y,
+                new_x + (object[2] - object[0]),
+                new_y + (object[3] - object[1]),
+                object[4]
+            ]))  
+        for idx, object in enumerate(new_labels):
+            img[object[1]:object[3], object[0]:object[2]] = cropped_objects[idx]
+        labels = np.append(labels, new_labels, 0)
+        breakpoint()
     return img, labels
-    
     
 
 
