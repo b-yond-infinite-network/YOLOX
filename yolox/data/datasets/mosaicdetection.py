@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from yolox.utils import adjust_box_anns, get_local_rank
-
+from yolox.data.data_augment import copy_paste
 from ..data_augment import random_affine
 from .datasets_wrapper import Dataset
 
@@ -42,7 +42,8 @@ class MosaicDetection(Dataset):
         self, dataset, img_size, mosaic=True, preproc=None,
         degrees=10.0, translate=0.1, mosaic_scale=(0.5, 1.5),
         mixup_scale=(0.5, 1.5), shear=2.0, enable_mixup=True,
-        mosaic_prob=1.0, mixup_prob=1.0, *args
+        mosaic_prob=1.0, mixup_prob=1.0, copy_paste_prob=0.5,
+        copy_paste_obj_proc=0.5, *args
     ):
         """
 
@@ -65,6 +66,8 @@ class MosaicDetection(Dataset):
         self.degrees = degrees
         self.translate = translate
         self.scale = mosaic_scale
+        self.copy_paste_prob = copy_paste_prob
+        self.copy_paste_prob = copy_paste_obj_proc
         self.shear = shear
         self.mixup_scale = mixup_scale
         self.enable_mosaic = mosaic
@@ -92,6 +95,14 @@ class MosaicDetection(Dataset):
 
             for i_mosaic, index in enumerate(indices):
                 img, _labels, _, img_id = self._dataset.pull_item(index)
+
+                if self.copy_paste_prob is not None and self.copy_paste_prob!=0.0:
+                    random_idx = index
+                    while random_idx==index:
+                        random_idx = random.randint(0, len(self._dataset.annotations)-1)
+                    paste_img, paste_label, _, _ = self._dataset.pull_item(random_idx)
+                    img, _labels = copy_paste(img, paste_img, _labels, paste_label, self.copy_paste_prob)
+
                 h0, w0 = img.shape[:2]  # orig hw
                 scale = min(1. * input_h / h0, 1. * input_w / w0)
                 img = cv2.resize(
@@ -158,6 +169,14 @@ class MosaicDetection(Dataset):
         else:
             self._dataset._input_dim = self.input_dim
             img, label, img_info, img_id = self._dataset.pull_item(idx)
+
+            if self.copy_paste_prob is not None and self.copy_paste_prob!=0.0:
+                random_idx = idx
+                while random_idx==idx:
+                    random_idx = random.randint(0, len(self._dataset.annotations)-1)
+                paste_img, paste_label, _, _ = self._dataset.pull_item(random_idx)
+                img, label = copy_paste(img, paste_img, label, paste_label, self.copy_paste_prob)
+
             img, label = self.preproc(img, label, self.input_dim)
             return img, label, img_info, img_id
 
