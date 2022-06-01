@@ -166,29 +166,20 @@ def copy_paste(img, paste_img, labels, paste_labels, prob=0.5, obj_proc=0.5):
         )]
         if len(objects_to_paste) == 0:
             return img, labels
-        cropped_objects = [
-            paste_img[object[1]:object[3], object[0]:object[2]] 
-            for object in objects_to_paste
-        ]
-        #50% chance to flip the object
-        for idx, obj in enumerate(cropped_objects):
-            if random.random() > 0.5:
-                cropped_objects[idx] = obj[:,::-1]
         new_labels = []
-        for idx, object in enumerate(objects_to_paste):
-            new_x = random.randint(0, img_w - (object[2] - object[0]))
-            new_y = random.randint(0, img_h - (object[3] - object[1]))
+        for obj in objects_to_paste:
+            cropped_obj = paste_img[obj[1]:obj[3], obj[0]:obj[2]]
+            if random.random() > 0.5:
+                cropped_obj = cropped_obj[:,::-1]
+            new_x_min = random.randint(0, img_w - (obj[2] - obj[0]))
+            new_y_min = random.randint(0, img_h - (obj[3] - obj[1]))
+            new_x_max = new_x_min + (obj[2] - obj[0])
+            new_y_max = new_y_min + (obj[3] - obj[1])
             new_labels.append(np.array([
-                new_x,
-                new_y,
-                new_x + (object[2] - object[0]),
-                new_y + (object[3] - object[1]),
-                object[4]
-            ]))  
-        for idx, object in enumerate(new_labels):
-            img[object[1]:object[3], object[0]:object[2]] = cropped_objects[idx]
+                new_x_min, new_y_min, new_x_max, new_y_max, obj[4]
+            ]))
+            img[new_y_min:new_y_max, new_x_min:new_x_max] = cropped_obj
         labels = np.append(labels, new_labels, 0)
-        breakpoint()
     return img, labels
     
 
