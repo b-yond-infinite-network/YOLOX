@@ -6,9 +6,9 @@ import ast
 import pprint
 from abc import ABCMeta, abstractmethod
 from typing import Dict
+import mlflow
 from tabulate import tabulate
 
-import neptune.new as neptune
 import torch
 from torch.nn import Module
 
@@ -23,7 +23,7 @@ class BaseExp(metaclass=ABCMeta):
         self.output_dir = "./YOLOX_outputs"
         self.print_interval = 100
         self.eval_interval = 10
-        self.neptune = None
+        self.run = None
 
     @abstractmethod
     def get_model(self) -> Module:
@@ -62,17 +62,6 @@ class BaseExp(metaclass=ABCMeta):
         ]
         return tabulate(exp_table, headers=table_header, tablefmt="fancy_grid")
 
-    def set_neptune_logging(self, state):
-        if state:
-            self.neptune = neptune.init(
-            project="jakub.pingielski/b-yond",
-            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI2NTlkYzZmZC1kZTY5LTQ2NjMtODFkZC04YmY4NTNmYTkwMTIifQ==",
-        )
-        else:
-            if self.neptune is not None:
-                self.neptune.stop()
-            self.neptune = None
-
     def merge(self, cfg_list):
         assert len(cfg_list) % 2 == 0
         for k, v in zip(cfg_list[0::2], cfg_list[1::2]):
@@ -87,13 +76,13 @@ class BaseExp(metaclass=ABCMeta):
                         v = ast.literal_eval(v)
                 setattr(self, k, v)
 
-    def add_params_from_config(self, config: dict, use_neptune: bool = True):
+    def add_params_from_config(self, config: dict, use_mlflow: bool = False):
         for key, value in config.items():
             if key == "dataset_version":
                 setattr(self, "dataset_dir", DATASETS_PATH / value)
             else:
                 setattr(self, key, value)
-            if use_neptune and self.neptune:
-                self.neptune[f"config/{key}"].log(value)
+            if use_mlflow and self.run:
+                mlflow.log_param(key, value)
 
 

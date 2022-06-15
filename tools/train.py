@@ -5,6 +5,7 @@
 import argparse
 import random
 import warnings
+import mlflow
 from loguru import logger
 
 import yaml
@@ -104,7 +105,7 @@ def make_parser():
 
 
 @logger.catch
-def main(exp, args):
+def main(exp, run, args):
     if exp.seed is not None:
         random.seed(exp.seed)
         torch.manual_seed(exp.seed)
@@ -120,17 +121,15 @@ def main(exp, args):
     configure_omp()
     cudnn.benchmark = True
 
-    trainer = Trainer(exp, args)
+    trainer = Trainer(exp, run, args)
     trainer.train()
 
 
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
-
-    #TODO: Add neptune logging with multidevice training. Logging now works only 
-    # on 1 gpu device training, not working with multiprocessing.
-    exp.set_neptune_logging(True)
+    mlflow.set_tracking_uri('http://127.0.0.1:5000')
+    run = mlflow.start_run()
 
     exp.merge(args.opts)
 
@@ -140,18 +139,21 @@ if __name__ == "__main__":
     if args.config_filepath is not None:
         with open(args.config_filepath, "r") as f:
             config = yaml.safe_load(f)
-        exp.add_params_from_config(config, use_neptune=True)
-        exp.neptune['config_file'].upload(args.config_filepath)
     num_gpu = get_num_devices() if args.devices is None else args.devices
     assert num_gpu <= get_num_devices()
 
     dist_url = "auto" if args.dist_url is None else args.dist_url
-    launch(
-        main,
-        num_gpu,
-        args.num_machines,
-        args.machine_rank,
-        backend=args.dist_backend,
-        dist_url=dist_url,
-        args=(exp, args),
-    )
+    with run:
+        if args.config_filepath is not None:
+            mlflow.log_artifact(args.config_filepath, 'config_file')
+            exp.run = run
+            exp.add_params_from_config(config, use_mlflow=True)
+        launch(
+            main,
+            num_gpu,
+            args.num_machines,
+            args.machine_rank,
+            backend=args.dist_backend,
+            dist_url=dist_url,
+            args=(exp, run, args),
+        )
