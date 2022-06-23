@@ -128,7 +128,8 @@ def main(exp, run, args):
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
-    mlflow.set_tracking_uri('http://127.0.0.1:5000')
+    mlflow.set_tracking_uri('http://localhost:5000')
+    mlflow.set_experiment('phoenix-suns-vz-ar')
     run = mlflow.start_run()
 
     exp.merge(args.opts)
