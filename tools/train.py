@@ -101,6 +101,13 @@ def make_parser():
         default=None,
         nargs=argparse.REMAINDER,
     )
+    parser.add_argument(
+        "-ml",
+        "--mlflow-url",
+        type=str,
+        help="MLFlow instance url for logging metrics and files.",
+        default=None
+    )
     return parser
 
 
@@ -128,8 +135,9 @@ def main(exp, run, args):
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
-    mlflow.set_tracking_uri('http://127.0.0.1:5000')
-    run = mlflow.start_run()
+    if args.mlflow_url is not None:
+        mlflow.set_tracking_uri(args.mlflow_url)
+        run = mlflow.start_run()
 
     exp.merge(args.opts)
 
@@ -145,9 +153,13 @@ if __name__ == "__main__":
     dist_url = "auto" if args.dist_url is None else args.dist_url
     with run:
         if args.config_filepath is not None:
-            mlflow.log_artifact(args.config_filepath, 'config_file')
-            exp.run = run
-            exp.add_params_from_config(config, use_mlflow=True)
+            run = None
+            if args.mlflow_url is not None:
+                mlflow.log_artifact(args.config_filepath, 'config_file')
+                exp.run = run
+                exp.add_params_from_config(config, use_mlflow=True)
+            else:
+                exp.add_params_from_config(config)
         launch(
             main,
             num_gpu,
