@@ -103,9 +103,16 @@ def make_parser():
     )
     parser.add_argument(
         "-ml",
-        "--mlflow-url",
+        "--mlflow_url",
         type=str,
         help="MLFlow instance url for logging metrics and files.",
+        default=None
+    )
+    parser.add_argument(
+        "-mlex",
+        "--mlflow_experiment_name",
+        type=str,
+        help="Experiment name to log metrics and files",
         default=None
     )
     return parser
@@ -135,9 +142,11 @@ def main(exp, run, args):
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
-    if args.mlflow_url is not None:
+    run = None
+    if args.mlflow_url is not None and args.mlflow_experiment_name is not None:
         mlflow.set_tracking_uri(args.mlflow_url)
-        run = mlflow.start_run()
+        experiment = mlflow.get_experiment_by_name(args.mlflow_experiment_name)
+        run = mlflow.start_run(experiment_id=experiment.experiment_id)
 
     exp.merge(args.opts)
 
@@ -151,21 +160,30 @@ if __name__ == "__main__":
     assert num_gpu <= get_num_devices()
 
     dist_url = "auto" if args.dist_url is None else args.dist_url
-    with run:
+    if run is not None:
+        with run:
+            if args.config_filepath is not None:
+                    mlflow.log_artifact(args.config_filepath, 'config_file')
+                    exp.run = run
+                    exp.add_params_from_config(config, use_mlflow=True)
+            launch(
+                main,
+                num_gpu,
+                args.num_machines,
+                args.machine_rank,
+                backend=args.dist_backend,
+                dist_url=dist_url,
+                args=(exp, run, args),
+            )
+    else:
         if args.config_filepath is not None:
-            run = None
-            if args.mlflow_url is not None:
-                mlflow.log_artifact(args.config_filepath, 'config_file')
-                exp.run = run
-                exp.add_params_from_config(config, use_mlflow=True)
-            else:
-                exp.add_params_from_config(config)
+            exp.add_params_from_config(config)
         launch(
-            main,
-            num_gpu,
-            args.num_machines,
-            args.machine_rank,
-            backend=args.dist_backend,
-            dist_url=dist_url,
-            args=(exp, run, args),
-        )
+                main,
+                num_gpu,
+                args.num_machines,
+                args.machine_rank,
+                backend=args.dist_backend,
+                dist_url=dist_url,
+                args=(exp, run, args),
+            )
