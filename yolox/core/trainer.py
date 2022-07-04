@@ -261,8 +261,16 @@ class Trainer:
                 ["{}: {:.1f}".format(k, v.latest) for k, v in loss_meter.items()]
             )
             for loss_name, loss_value in loss_meter.items():
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
                 if self.run is not None:
                     mlflow.log_metric(f"loss/{loss_name}", loss_value.latest)
+=======
+                self.neptune[loss_name].log(loss_value.latest)
+>>>>>>> Stashed changes
+=======
+                self.neptune[loss_name].log(loss_value.latest)
+>>>>>>> Stashed changes
             time_meter = self.meter.get_filtered_meter("time")
             time_str = ", ".join(
                 ["{}: {:.3f}s".format(k, v.avg) for k, v in time_meter.items()]
