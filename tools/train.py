@@ -163,9 +163,9 @@ if __name__ == "__main__":
     if run is not None:
         with run:
             if args.config_filepath is not None:
-                    mlflow.log_artifact(args.config_filepath, 'config_file')
-                    exp.run = run
-                    exp.add_params_from_config(config, use_mlflow=True)
+                mlflow.log_artifact(args.config_filepath, 'config_file')
+                exp.run = run
+                exp.add_params_from_config(config, use_mlflow=True)
             launch(
                 main,
                 num_gpu,

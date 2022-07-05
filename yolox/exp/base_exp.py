@@ -82,7 +82,7 @@ class BaseExp(metaclass=ABCMeta):
                 setattr(self, "dataset_dir", DATASETS_PATH / value)
             else:
                 setattr(self, key, value)
-            if use_mlflow and self.run:
+            if use_mlflow and self.run and key != "classes_mapping":
                 mlflow.log_param(key, value)
 
 
