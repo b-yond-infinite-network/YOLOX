@@ -10,6 +10,7 @@ import pickle
 import xml.etree.ElementTree as ET
 
 import numpy as np
+np.seterr(invalid='ignore')
 
 
 def parse_rec(filename):
