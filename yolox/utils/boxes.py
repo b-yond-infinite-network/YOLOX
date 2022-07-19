@@ -44,18 +44,11 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
         if not image_pred.size(0):
             continue
         # Get score and class with highest confidence
-        class_confs = image_pred[:, 5: 5 + num_classes]
-        top_confs, top_classes = torch.topk(class_confs, num_classes, 1, sorted=True)
+        class_conf, class_pred = torch.max(image_pred[:, 5: 5 + num_classes], 1, keepdim=True)
 
-        class_conf = top_confs[:,0].unsqueeze(1)
-        class_pred = top_classes[:,0].unsqueeze(1)
-
-        conf_mask = (image_pred[:, 4] * top_confs[:,0].squeeze() >= conf_thre).squeeze()
+        conf_mask = (image_pred[:, 4] * class_conf.squeeze() >= conf_thre).squeeze()
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
-        
         detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
-        
-        top_classes = class_pred[conf_mask]
         detections = detections[conf_mask]
         if not detections.size(0):
             continue
@@ -74,32 +67,13 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
                 nms_thre,
             )
 
-        top_classes = top_classes[nms_out_index]
         detections = detections[nms_out_index]
-        detections = process_double_class_instances(detections, top_classes)
-
         if output[i] is None:
             output[i] = detections
         else:
             output[i] = torch.cat((output[i], detections))
 
-
     return output
-
-
-def process_double_class_instances(detections, top_classes):
-    used_class = []
-    processed_detections = []
-    unique_classes = top_classes.unique()
-    sorted_dets = sorted(enumerate(detections), key=lambda x:x[1][-2], reverse=True)
-    for idx, det in sorted_dets:
-        class_id = int(det[-1])
-        if class_id not in used_class:
-            used_class.append(int(det[-1]))
-            processed_detections.append(detections[idx])
-        if len(used_class) == len(unique_classes):
-            break
-    return torch.stack(processed_detections)
                 
 
 def bboxes_iou(bboxes_a, bboxes_b, xyxy=True):
