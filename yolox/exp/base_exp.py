@@ -79,7 +79,7 @@ class BaseExp(metaclass=ABCMeta):
     def add_params_from_config(self, config: dict, use_mlflow: bool = False):
         for key, value in config.items():
             if key == "dataset_version":
-                setattr(self, "dataset_dir", DATASETS_PATH / value)
+                setattr(self, "dataset_dir", DATASETS_PATH / config["s3_dataset"] / value)
             else:
                 setattr(self, key, value)
             if use_mlflow and self.run and key != "classes_mapping":
