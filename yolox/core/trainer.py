@@ -5,12 +5,15 @@
 import datetime
 import os
 import time
+from xml.etree.ElementTree import TreeBuilder
 import mlflow
 from loguru import logger
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
+from scripts.analysis.eval import evaluate
+from utils.general import load_yaml
 
 from yolox.data import DataPrefetcher
 from yolox.utils import (
@@ -40,6 +43,7 @@ class Trainer:
         self.exp = exp
         self.args = args
         self.run = run
+        self.config = load_yaml(args.config_filepath)
         # training related attr
         self.max_epoch = exp.max_epoch
         self.amp_training = args.fp16
@@ -187,7 +191,7 @@ class Trainer:
             self.ema_model.updates = self.max_iter * self.start_epoch
 
         self.model = model
-
+        
         self.evaluator = self.exp.get_evaluator(
             batch_size=self.args.batch_size, is_distributed=self.is_distributed
         )
@@ -344,9 +348,11 @@ class Trainer:
                 evalmodel = evalmodel.module
 
         with adjust_status(evalmodel, training=False):
-            ap50_95, ap50, summary = self.exp.eval(
+            ap50, ap50_95, summary = self.exp.eval(
                 evalmodel, self.evaluator, self.is_distributed
             )
+            #evaluating per color eval sets
+            evaluate(evalmodel, self.config, self.exp.dataset_dir, only_colors=True, run=self.run)
 
         update_best_ckpt = ap50_95 > self.best_ap
         self.best_ap = max(self.best_ap, ap50_95)
